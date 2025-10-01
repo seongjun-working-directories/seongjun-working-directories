@@ -1,393 +1,589 @@
-# Market Follower
+# 🤖 Calibration Room (자동 포즈 추정 시스템)
 
-> 업비트 암호화폐 실시간 시세 및 가상 거래 서비스
-
-[![Java](https://img.shields.io/badge/Java-17-orange)](https://openjdk.java.net/projects/jdk/17/)
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.x-brightgreen)](https://spring.io/projects/spring-boot)
-[![MySQL](https://img.shields.io/badge/MySQL-8.0-blue)](https://www.mysql.com/)
-[![Redis](https://img.shields.io/badge/Redis-Cache-red)](https://redis.io/)
-[![Kafka](https://img.shields.io/badge/Apache-Kafka-black)](https://kafka.apache.org/)
-[![WebSocket](https://img.shields.io/badge/WebSocket-STOMP-yellow)](https://stomp.github.io/)
-
-## 🚀 주요 기능
-
-### 📊 실시간 데이터
-- **실시간 암호화폐 시세** - 업비트 600여개 코인 현재가 정보
-- **실시간 호가 데이터** - 매수/매도 호가 10단계 정보
-- **WebSocket 스트리밍** - 10초마다 최신 시세/호가 자동 업데이트
-- **빠른 응답** - Redis 캐시로 밀리초 단위 응답 (TTL: 3분)
-
-### 📈 차트 데이터
-- **다양한 시간대** - 7일(1시간), 30일(4시간), 3개월(1일), 1년(1일), 5년(1주) 캔들 데이터
-- **실시간 5분 캔들** - 5분마다 최신 5분봉 업데이트 및 Redis 저장
-- **당일 캔들 데이터** - 00시부터 현재까지 모든 5분봉 데이터 제공
-- **자동 데이터 정리** - 매일 08:58 Redis 캔들 데이터 정리
-
-### 💰 가상 거래 시스템
-- **매수/매도 주문** - 실제 거래소와 유사한 주문 시스템
-- **자동 체결** - 5초마다 호가 기준 자동 체결 확인
-- **포트폴리오 관리** - 보유 코인 및 평균 매수가 추적
-- **거래 내역** - 전체 주문/체결 내역 조회
-- **실시간 알림** - 주문 체결 시 개인별 WebSocket 알림
-- **주문 취소** - 대기 중인 주문 실시간 취소 기능
-
-### 🔐 사용자 관리
-- **구글 소셜 로그인** - 간편한 OAuth2 인증
-- **JWT 토큰 인증** - 안전한 API 접근 관리
-- **개인별 지갑** - KRW 잔액 및 암호화폐 보유량 관리 (기본 1억원 지급)
-- **계정 탈퇴** - 소프트 삭제 방식으로 계정 비활성화
-
-## 🛠 기술 스택
-
-- **Backend**: Spring Boot 3.x, Java 17
-- **Database**: MySQL 8.0
-- **Cache**: Redis (실시간 데이터 캐싱)
-- **Message Queue**: Apache Kafka (데이터 스트리밍)
-- **Real-time**: WebSocket (STOMP) (실시간 알림)
-- **Security**: Spring Security, JWT, OAuth2
-- **Documentation**: Swagger/OpenAPI 3.0
-- **Infrastructure**: Docker, AWS EC2
-- **CI/CD**: GitHub Actions
-
-## 📋 API 문서
-
-🔗 [Swagger UI 문서](http://ec2-43-201-3-45.ap-northeast-2.compute.amazonaws.com:8080/swagger-ui/index.html)
-
-### 🎯 시세 및 차트 API
-
-```http
-GET  /market/list               # 거래 가능한 코인 목록
-GET  /market/ticker/{market}    # 특정 코인 현재가
-GET  /market/ticker/all         # 전체 코인 현재가
-GET  /candle/all                # 전체 캔들 데이터
-GET  /candle/all?period=yyyy-MM-dd&is_krw_market=true  # 특정 날짜 이후 캔들 데이터
-GET  /candle/daily?market=      # 특정 코인 당일 5분봉 데이터
-GET  /orderbook/{market}        # 특정 코인 호가 정보
-```
-
-### 🔐 인증 API
-
-```http
-POST /auth/google               # 구글 로그인
-POST /auth/signup               # 회원가입
-POST /auth/signout              # 회원 탈퇴
-```
-
-### 💰 지갑 및 거래 API
-
-```http
-GET  /wallet/me                 # 내 지갑 정보 조회
-POST /orderbook/request         # 매수/매도 주문 요청
-POST /orderbook/cancel/{id}     # 주문 취소
-GET  /orderbook/holding/all     # 보유 코인 조회
-GET  /orderbook/history/all     # 거래 내역 조회
-```
-
-### 📡 WebSocket 채널
-
-Market Follower는 3가지 타입의 실시간 WebSocket 채널을 제공합니다:
-
-#### 1. 시세(Ticker) 채널
-```javascript
-// 전체 코인 시세 구독 (10초마다 600개 코인 일괄 전송)
-stompClient.subscribe('/topic/ticker/all', message => {
-    const allTickers = JSON.parse(message.body);
-    console.log(`${allTickers.length}개 코인 시세 업데이트`);
-});
-
-// 특정 코인 시세 구독
-stompClient.subscribe('/topic/ticker/KRW-BTC', message => {
-    const btcTicker = JSON.parse(message.body);
-    console.log(`BTC 현재가: ${btcTicker.trade_price}원`);
-});
-```
-
-#### 2. 호가(Orderbook) 채널
-```javascript
-// 특정 코인 호가 구독 (10초마다 업데이트)
-stompClient.subscribe('/topic/orderbook/KRW-BTC', message => {
-    const btcOrderbook = JSON.parse(message.body);
-    console.log('BTC 매수호가:', btcOrderbook.orderbook_units[0].bid_price);
-    console.log('BTC 매도호가:', btcOrderbook.orderbook_units[0].ask_price);
-});
-```
-
-#### 3. 주문 체결 알림 채널 (개인별)
-```javascript
-// 개인 주문 체결 알림 구독 (이메일 기반)
-const userEmail = extractEmailFromJWT(jwtToken);
-stompClient.subscribe(`/topic/orders/${userEmail}`, message => {
-    const tradeNotification = JSON.parse(message.body);
-    console.log('주문 체결:', tradeNotification);
-    // 실시간으로 포트폴리오 업데이트
-    updatePortfolio(tradeNotification);
-});
-```
-
-## 🏃‍♂️ 빠른 시작
-
-### 1. 저장소 클론
-```bash
-git clone https://github.com/seongjun-working-directories/market-follower.git
-cd market-follower
-```
-
-### 2. 환경 변수 설정
-```bash
-# .env 파일 생성
-API_ACCESS=your_upbit_api_key
-API_SECRET=your_upbit_secret_key
-GOOGLE_CLIENT_ID=your_google_client_id
-GOOGLE_CLIENT_SECRET=your_google_client_secret
-JWT_SECRET=your_jwt_secret_key
-```
-
-### 3. Docker로 실행
-```bash
-docker-compose up -d
-```
-
-### 4. 애플리케이션 접속
-- **백엔드 서버**: http://ec2-43-201-3-45.ap-northeast-2.compute.amazonaws.com:8080
-- **API 문서**: http://ec2-43-201-3-45.ap-northeast-2.compute.amazonaws.com:8080/swagger-ui/index.html
-- **WebSocket 연결**: `ws://ec2-43-201-3-45.ap-northeast-2.compute.amazonaws.com:8080/ws?token=JWT토큰`
-
-## 🏗 시스템 아키텍처
-
-```
-┌─────────────┐    ┌──────────────┐    ┌─────────────┐    ┌─────────────┐
-│ Upbit API   │ => │ Kafka        │ => │ Consumer    │ => │ Redis Cache │
-│ (REST/WS)   │    │ Producer     │    │ Service     │    │ (3분 TTL)   │
-└─────────────┘    └──────────────┘    └─────────────┘    └─────────────┘
-                                                                    │
-                                                                    ▼
-┌─────────────┐    ┌──────────────┐    ┌─────────────┐    ┌─────────────┐
-│ Client      │ <= │ WebSocket    │ <= │ Spring Boot │ <= │ MySQL DB    │
-│ (Frontend)  │    │ (STOMP)      │    │ API Server  │    │ (거래데이터) │
-└─────────────┘    └──────────────┘    └─────────────┘    └─────────────┘
-```
-
-### 데이터 흐름
-
-1. **데이터 수집**: Kafka Producer가 업비트 API에서 실시간 데이터 수집
-2. **데이터 처리**: Kafka Consumer가 메시지를 처리하여 Redis에 저장
-3. **실시간 전송**: 10초마다 Redis에서 최신 데이터를 조회하여 WebSocket으로 브로드캐스팅
-4. **거래 처리**: 5초마다 대기 중인 주문의 체결 조건을 확인하여 자동 체결
-5. **알림 전송**: 주문 체결 시 개인별 WebSocket 채널로 실시간 알림 전송
-
-## 📊 데이터 수집 및 업데이트 스케줄
-
-| 데이터 타입 | 수집 주기 | 브로드캐스팅 주기 | 설명 |
-|------------|----------|------------------|------|
-| 실시간 시세 | 실시간 | 10초마다 | 600개 코인 현재가 |
-| 호가 데이터 | 실시간 | 10초마다 | 매수/매도 호가 10단계 |
-| 주문 체결 확인 | - | 5초마다 | 대기 주문 체결 조건 확인 |
-| 5분 캔들 데이터 | - | 5분마다 | 당일 5분봉 Redis 업데이트 |
-| 캔들 데이터 동기화 | 매일 09:05 | - | 전체 기간별 캔들 동기화 |
-| 거래 코인 목록 | 매일 08:40 | - | 신규/상장폐지 코인 업데이트 |
-| Redis 캔들 정리 | 매일 08:58 | - | 전일 5분봉 데이터 삭제 |
-
-## 💾 데이터베이스 설계
-
-### 🗄️ [데이터베이스 스키마 상세 보기](schema.md)
-
-### 주요 테이블 구조
-
-#### 사용자 관리
-- **`member`** - 사용자 기본 정보 (이름, 이메일, 가입일, 활성화 상태)
-- **`auth`** - 사용자 권한 정보 (역할 기반 접근 제어)
-- **`wallet`** - 개인별 KRW 지갑 (잔액, 주문 잠금 자금)
-
-#### 거래 시스템
-- **`holding`** - 암호화폐 보유량 (보유 수량, 평균 단가, 잠금 수량)
-- **`trade_history`** - 거래 내역 (주문, 체결, 취소 기록)
-- **`tradable_coin`** - 거래 가능한 코인 목록 및 주의사항
-
-#### 시세 데이터
-- **`upbit_ticker`** - 실시간 시세 정보
-- **`upbit_candle_*`** - 기간별 캔들 데이터 (7d, 30d, 3m, 1y, 5y)
-
-### 캔들 데이터 저장 전략
-
-| 테이블 | 기간 | 캔들 간격 | 보존 범위 | 예상 레코드 수 |
-|--------|------|-----------|-----------|----------------|
-| upbit_candle_7d | 7일 | 1시간 | 오늘 기준 정확히 7일 | 168 × 600코인 |
-| upbit_candle_30d | 30일 | 4시간 | 오늘 기준 정확히 30일 | 180 × 600코인 |
-| upbit_candle_3m | 3개월 | 1일 | 오늘 기준 정확히 90일 | 90 × 600코인 |
-| upbit_candle_1y | 1년 | 1일 | 오늘 기준 정확히 365일 | 365 × 600코인 |
-| upbit_candle_5y | 5년 | 1주 | 오늘 기준 정확히 5년 | 260 × 600코인 |
-
-### Redis 캐시 구조
-```
-upbit:ticker:{MARKET}           # 시세 데이터 (TTL: 3분)
-upbit:orderbook:{MARKET}        # 호가 데이터 (TTL: 3분)
-upbit:daily:{MARKET}            # 당일 5분봉 데이터
-```
-
-## 🎮 가상 거래 시스템
-
-### 거래 프로세스
-
-#### 매수 주문
-1. 지갑 잔액 확인 (price × size ≤ balance)
-2. 주문 금액만큼 balance → locked 이동
-3. 주문 상태 WAITING으로 데이터베이스 저장
-4. 5초마다 체결 조건 확인 (매도호가 ≤ 주문가격)
-5. 체결 시 실제 체결가로 정산, locked 차감, 보유량 증가
-6. 평균 매수가 재계산 및 WebSocket 알림 전송
-
-#### 매도 주문
-1. 보유 수량 확인 (size ≤ holding.size)
-2. 매도 수량만큼 holding.size → holding.locked 이동
-3. 주문 상태 WAITING으로 저장
-4. 5초마다 체결 조건 확인 (매수호가 ≥ 주문가격)
-5. 체결 시 holding.locked 차감, 지갑 잔액 증가
-6. WebSocket으로 체결 알림 전송
-
-### 주문 상태
-- **WAITING**: 체결 대기 중
-- **SUCCESS**: 체결 완료
-- **FAILED**: 체결 실패 (시스템 오류)
-- **CANCELLED**: 사용자 취소
-
-### 동시성 제어
-- 비관적 락을 이용한 주문 처리
-- 체결/취소 시 주문 상태 재확인
-- 자금 반환 로직을 통한 데이터 정합성 보장
-
-## 📡 WebSocket 연결 가이드
-
-### 연결 방법
-```javascript
-const socket = new SockJS("http://server:8080/ws?token=" + jwtToken);
-const stompClient = Stomp.over(socket);
-
-stompClient.heartbeat.outgoing = 30000;
-stompClient.heartbeat.incoming = 30000;
-
-stompClient.connect({}, () => {
-    console.log("WebSocket 연결 성공");
-    subscribeToChannels();
-}, error => {
-    console.error("WebSocket 연결 실패:", error);
-});
-```
-
-### 채널별 데이터 형태
-
-#### 시세 데이터 (UpbitTickerDto)
-```json
-{
-    "market": "KRW-BTC",
-    "trade_price": 50000000.0,
-    "change_rate": 0.0245,
-    "acc_trade_volume_24h": 1234.56789,
-    "timestamp": 1631234567890
-}
-```
-
-#### 호가 데이터 (UpbitOrderbookDto)
-```json
-{
-    "market": "KRW-BTC",
-    "orderbook_units": [
-        {
-            "ask_price": 50001000.0,
-            "bid_price": 49999000.0,
-            "ask_size": 0.12345678,
-            "bid_size": 0.98765432
-        }
-    ]
-}
-```
-
-#### 주문 체결 알림 (TradeHistoryDto)
-```json
-{
-    "id": 123,
-    "member_id": 456,
-    "market": "KRW-BTC",
-    "side": "BUY",
-    "price": 50000000.0,
-    "size": 0.001,
-    "status": "SUCCESS",
-    "request_at": "2025-09-09T10:00:00",
-    "matched_at": "2025-09-09T10:05:30"
-}
-```
-
-#### 당일 5분봉 캔들 데이터
-```json
-[
-    {
-        "market": "KRW-BTC",
-        "candle_date_time_kst": "2025-09-13T09:00:00",
-        "opening_price": 50000000.0,
-        "high_price": 50100000.0,
-        "low_price": 49900000.0,
-        "trade_price": 50050000.0,
-        "candle_acc_trade_volume": 1.23456789,
-        "unit": 5
-    }
-]
-```
-
-## 🚀 배포
-
-### GitHub Actions CI/CD
-자동 배포는 `main` 브랜치 푸시 시 실행됩니다:
-
-1. **빌드**: Gradle로 JAR 파일 생성
-2. **도커 이미지**: GitHub Container Registry에 푸시
-3. **배포**: AWS EC2에 자동 배포
-4. **서비스 재시작**: Docker 컨테이너 무중단 재시작
-
-### 배포 환경
-- **서버**: AWS EC2 t3.medium (2 vCPU, 4GB RAM)
-- **데이터베이스**: MySQL 8.0
-- **캐시**: Redis
-- **로드밸런서**: AWS ALB (추후 적용 예정)
-
-## 📈 성능 및 모니터링
-
-### 성능 지표
-- **응답 시간**: 평균 50ms 이하 (Redis 캐시)
-- **동시 접속자**: 1,000명 이상 지원
-- **데이터 처리량**: 초당 10,000 메시지 (Kafka)
-- **WebSocket 연결**: 최대 5,000 동시 연결
-
-### 모니터링 도구
-- **APM**: Spring Boot Actuator + Micrometer
-- **로그**: Logback + ELK Stack (예정)
-
-## 🛡️ 보안
-
-- **인증**: JWT 토큰 기반 Stateless 인증
-- **권한**: Spring Security Role-Based Access Control
-- **API 보호**: Rate Limiting, CORS 설정
-- **데이터 암호화**: 민감 정보 AES-256 암호화
-- **계정 보안**: 구글 OAuth2 인증, 계정 비활성화 방식 탈퇴
-
-### 개발 규칙
-- **커밋 메시지**: Conventional Commits 형식
-- **문서**: API 변경 시 Swagger 문서 업데이트
-
-## 📄 라이선스
-
-이 프로젝트는 MIT 라이선스 하에 배포됩니다. 자세한 내용은 [LICENSE](LICENSE) 파일을 참조하세요.
-
-## 📞 문의 및 지원
-
-- **이슈 제보**: [GitHub Issues](https://github.com/seongjun-working-directories/market-follower/issues)
-- **기능 요청**: [GitHub Discussions](https://github.com/seongjun-working-directories/market-follower/discussions)
-- **이메일**: seongjuncode@gmail.com
+자동 포즈 추정 시스템은 카메라, 깊이 센서, 라이다를 활용하여 로봇의 위치와 자세를 실시간으로 추정하는 ROS 패키지입니다. 웹 기반 GUI를 통해 직관적인 캘리브레이션과 모니터링을 제공합니다.
 
 ---
 
-<div align="center">
+## 📋 목차
 
-| [📚 API 문서](http://ec2-43-201-3-45.ap-northeast-2.compute.amazonaws.com:8080/swagger-ui/index.html) | [🗄️ 데이터베이스 스키마](schema.md) | [🐛 이슈 제보](https://github.com/seongjun-working-directories/market-follower/issues) |
+1. [🎯 시스템 개요](#-시스템-개요)
+2. [🏗️ 시스템 아키텍처](#️-시스템-아키텍처)
+3. [⚡ 빠른 시작](#-빠른-시작)
+4. [🛠️ 상세 설치 가이드](#️-상세-설치-가이드)
+5. [🚀 사용법](#-사용법)
+6. [🖥️ GUI 사용 가이드](#️-gui-사용-가이드)
+7. [📡 API 및 토픽 레퍼런스](#-api-및-토픽-레퍼런스)
+8. [⚙️ 설정 및 파라미터](#️-설정-및-파라미터)
+9. [🔧 잠재적 오류 대응](#-잠재적-오류-대응)
+10. [🧮 알고리즘 상세](#-알고리즘-상세)
+11. [🔄 캘리브레이션 워크플로우](#-캘리브레이션-워크플로우)
+12. [📚 참고 자료](#-참고-자료)
 
-**⭐ 이 프로젝트가 도움이 되었다면 Star를 눌러주세요!**
+---
 
-</div>
+## 🎯 시스템 개요
+
+이 시스템은 다음과 같은 센서들을 이용하여 다중 센서 융합 기반의 포즈 추정을 수행합니다:
+
+- 📷 **Camera Pose Estimator**: ArUco 마커를 이용한 비전 기반 포즈 추정
+- 🔍 **Depth Pose Estimator**: 체스보드와 ArUco 마커를 이용한 깊이 카메라 기반 포즈 추정
+- 📡 **LiDAR Pose Estimator**: ICP 알고리즘을 이용한 라이다 스캔 매칭 기반 포즈 추정
+- 🖥️ **Web-based GUI**: Vue.js 기반 실시간 모니터링 및 제어 인터페이스
+
+### ✨ 주요 특징
+
+- 🎯 실시간 6-DOF 포즈 추정 (위치 + 자세)
+- 🖥️ 실시간 센서 데이터 스트리밍 (이미지 + 포인트클라우드)
+- 🎮 웹 기반 로봇 제어 (수동 조작 + 자율 주행)
+- 📁 자동 URDF 생성 및 파일 전송
+- ⚙️ 센서별 활성화/비활성화 설정
+- 📊 실시간 시각화 및 모니터링
+
+---
+
+## 🏗️ 시스템 아키텍처
+
+### 📁 전체 프로젝트 구조
+
+```
+calibration-room/
+├── auto_pose_estimation/              # ROS 포즈 추정 시스템
+│   └── src/
+│       ├── camera_pose_estimator/     # ArUco 마커 기반 카메라 포즈 추정
+│       ├── depth_pose_estimator/      # 깊이 센서 기반 포즈 추정
+│       └── lidar_pose_estimator/      # LiDAR 기반 포즈 추정
+└── pose_estimation_gui/               # 웹 기반 GUI 시스템
+    ├── client/                        # Vue.js 프론트엔드
+    └── server/                        # Express.js 백엔드
+```
+
+### 🌐 네트워크 구성
+
+```
+🖥️ Main PC (192.168.2.2)             🖥️ Sub PC (192.168.2.3)
+├── ROS Master                         ├── Additional Sensors
+├── Navigation Stack                   └── Data Processing
+└── Goal Management
+
+📱 Client PC (192.168.2.8)
+├── Web GUI Interface
+├── Real-time Monitoring
+└── Calibration Control
+```
+
+### 🔄 데이터 플로우
+
+```
+📱 Frontend (Vue.js 3 + TypeScript)
+        ↕️ HTTP/WebSocket
+🖥️ Backend (Express.js + TypeScript)
+        ↕️ ROS Bridge
+🤖 ROS System (C++/Python)
+```
+
+---
+
+## ⚡ 빠른 시작
+
+### 🚀 3단계로 시작하기
+
+#### 1. 환경 설정
+
+```bash
+# 환경 변수 설정 (IP는 실제 환경에 맞게 수정)
+export ROS_HOSTNAME=192.168.2.8
+export ROS_MASTER_URI=http://192.168.2.2:11311
+```
+
+#### 2. 시스템 실행
+
+```bash
+# 터미널 1: 백엔드
+npm run dev --prefix ~/calibration-room/pose_estimation_gui/server
+
+# 터미널 2: 프론트엔드
+npm run dev --prefix ~/calibration-room/pose_estimation_gui/client
+```
+
+#### 3. GUI 접속
+
+브라우저에서 `http://localhost:5173` 접속  
+→ **LAUNCH ON** 버튼 클릭  
+→ **SHOW RESULT**로 결과 확인
+
+---
+
+## 🛠️ 상세 설치 가이드
+
+### 🔧 시스템 요구사항
+
+- **OS**: Ubuntu 20.04 LTS (ROS Noetic 지원)
+- **ROS**: Noetic Ninjemys
+- **Node.js**: 16.18.0+
+- **메모리**: 8GB+ 권장
+- **저장공간**: 10GB+ 사용 가능 공간
+
+### 📦 의존성 설치
+
+#### 1. ROS 패키지
+
+```bash
+# 핵심 ROS 패키지
+sudo apt-get update
+sudo apt-get install ros-$ROS_DISTRO-rosbridge-server
+sudo apt-get install ros-$ROS_DISTRO-image-transport
+sudo apt-get install ros-$ROS_DISTRO-tf ros-$ROS_DISTRO-tf2-ros
+sudo apt-get install ros-$ROS_DISTRO-tf2-web-republisher
+sudo apt-get install ros-$ROS_DISTRO-pcl-conversions
+sudo apt-get install ros-$ROS_DISTRO-image-geometry
+sudo apt-get install ros-$ROS_DISTRO-camera-info-manager
+```
+
+#### 2. 컴퓨터 비전 및 수학 라이브러리
+
+```bash
+# OpenCV with ArUco support
+sudo apt-get install libopencv-dev libopencv-contrib-dev
+
+# PCL 및 수학 라이브러리
+sudo apt-get install libpcl-dev libeigen3-dev
+sudo apt-get install libgflags-dev libgoogle-glog-dev
+sudo apt-get install libusb-1.0-0-dev libuvc-dev
+```
+
+#### 3. Node.js 환경 설정
+
+```bash
+# Node.js 설치 및 설정
+sudo apt install nodejs npm
+sudo npm install -g n
+sudo n 16.18.0
+hash -r
+
+# 개발 도구 설치
+sudo npm install -g typescript
+sudo npm install -g @microsoft/rush
+```
+
+### 🛠️ 프로젝트 빌드
+
+#### 1. ROS 패키지 빌드
+
+```bash
+cd ~/calibration-room/auto_pose_estimation
+catkin_make -j4
+source devel/setup.bash
+```
+
+#### 2. GUI 시스템 설정
+
+```bash
+cd ~/calibration-room/pose_estimation_gui
+rush purge    # 이전 설치 정리
+rush update   # 패키지 일괄 설치
+```
+
+#### 3. 설정 파일 복사
+
+```bash
+# LiDAR 참조 데이터
+sudo cp lidar_01_reference.txt ~/.ros/
+sudo cp lidar_02_reference.txt ~/.ros/
+```
+
+### ⚙️ 환경 변수 설정
+
+`~/.bashrc` 파일에 추가:
+
+```bash
+# ROS 환경 설정
+export ROS_HOSTNAME=192.168.2.8              # 현재 시스템 IP로 변경
+export ROS_MASTER_URI=http://192.168.2.2:11311
+
+source /opt/ros/noetic/setup.bash
+source ~/calibration-room/auto_pose_estimation/devel/setup.bash
+
+# 편의를 위한 alias 설정
+alias be='npm run dev --prefix ~/calibration-room/pose_estimation_gui/server'
+alias fe='npm run dev --prefix ~/calibration-room/pose_estimation_gui/client'
+alias main='ssh cona@192.168.2.2 -XC'
+alias sub='ssh cona@192.168.2.3 -XC'
+```
+
+적용:
+
+```bash
+source ~/.bashrc
+```
+
+---
+
+## 🚀 사용법
+
+### 🖥️ GUI 시스템 실행
+
+단계별 실행:
+
+```bash
+# 1. 백엔드 서버 시작
+cd ~/calibration-room/pose_estimation_gui/server
+npm run dev
+# 또는: be
+
+# 2. 프론트엔드 시작 (새 터미널)
+cd ~/calibration-room/pose_estimation_gui/client
+npm run dev
+# 또는: fe
+
+# 3. 웹 브라우저에서 접속
+http://localhost:5173
+```
+
+### 🛠️ ROS 시스템 실행 모드
+
+#### 통합 실행 (권장)
+
+```bash
+# 기본 모드 - 모든 센서 활성화
+roslaunch depth_pose_estimator classic_pose_estimator_launch.launch
+
+# 단일 깊이 센서 모드
+roslaunch depth_pose_estimator integrated_pose_estimator_launch.launch
+
+# 이중 깊이 센서 모드
+roslaunch depth_pose_estimator new_pose_estimator_launch.launch
+```
+
+#### 개별 센서 실행
+
+```bash
+# 각 센서를 별도로 실행하고 싶은 경우
+roslaunch camera_pose_estimator camera_pose_estimator_launch.launch
+roslaunch depth_pose_estimator depth_pose_estimator_launch.launch
+roslaunch lidar_pose_estimator lidar_pose_estimator_launch.launch
+```
+
+### 📡 LiDAR 캘리브레이션 절차
+
+#### 1. 참조 데이터 수집 (초기 한번만)
+
+```bash
+# GUI에서 또는 터미널에서 실행 가능
+rostopic pub /lidar_01_reference std_msgs/Bool "data: true"
+rostopic pub /lidar_02_reference std_msgs/Bool "data: true"
+```
+
+#### 2. 현재 데이터와 매칭
+
+```bash
+# 로봇 위치 변경 후 매칭 수행
+rostopic pub /lidar_01_current std_msgs/Bool "data: true"
+rostopic pub /lidar_02_current std_msgs/Bool "data: true"
+```
+
+---
+
+## 🖥️ GUI 사용 가이드
+
+### 🏠 홈 페이지
+
+- 🟢 **LAUNCH ON**: 전체 ROS 시스템 시작
+- 🔴 **LAUNCH OFF**: ROS 시스템 안전 종료
+- 📊 **SHOW RESULT**: 캘리브레이션 메인 페이지
+- 🖥️ **WEBVIZ**: 3D 시각화 도구 (별도 창)
+
+### 📊 캘리브레이션 페이지
+
+**모드 전환:**
+- 📈 **6-DOF DATA**: 실시간 센서 위치/자세 수치 데이터
+- 🖥️ **SENSOR IMAGE**: 센서별 이미지 스트리밍 (카루셀)
+
+**LiDAR 제어:**
+- 📡 **LIDAR 1 CURRENT**: 전방 라이다 매칭 실행
+- 📡 **LIDAR 2 CURRENT**: 후방 라이다 매칭 실행
+
+**데이터 관리:**
+- 💾 **캘리브레이션 결과 추출**: 현재 6-DOF 값으로 URDF 파일 생성
+- 📤 **추출된 파일 전송**: 생성된 URDF를 메인 시스템으로 자동 전송
+
+### ⚙️ 설정 페이지
+
+- 📷 **RGB Camera**: 카메라 활성화/비활성화
+- 🔍 **RGB-D Camera**: 깊이 카메라 개별 선택 (`/depth1`, `/depth2`)
+- 📡 **2D LiDAR**: 라이다 센서 개별 선택 (`/scan1`, `/scan2`)
+- 💾 **설정 저장/복원**: 사용자 정의 설정 관리
+
+### 🎮 조작 페이지
+
+**수동 제어:**
+- ⬆️⬇️⬅️➡️ **방향 버튼**: 직관적인 로봇 제어
+- ⏹️ **정지 버튼**: 즉시 모든 움직임 정지
+
+**자율 주행:**
+- 🏠 **홈**: 시작 위치로 복귀
+- 1️⃣ 2️⃣ 3️⃣: 각 테이블 번호로 자동 이동
+
+---
+
+## 📡 API 및 토픽 레퍼런스
+
+### 📥 입력 토픽
+
+| 토픽명 | 타입 | 설명 |
+|--------|------|------|
+| `/camera/image_raw/compressed` | `sensor_msgs/CompressedImage` | 카메라 이미지 |
+| `/camera/depth/image_raw` | `sensor_msgs/Image` | 깊이 이미지 |
+| `/camera/depth_registered/points` | `sensor_msgs/PointCloud2` | 깊이 포인트클라우드 |
+| `/scan1`, `/scan2` | `sensor_msgs/LaserScan` | 라이다 스캔 데이터 |
+| `/cmd_vel` | `geometry_msgs/Twist` | 로봇 제어 명령 |
+
+### 📤 출력 토픽
+
+| 토픽명 | 타입 | 설명 |
+|--------|------|------|
+| `/camera_01_image_01`, `/camera_01_image_02` | `sensor_msgs/CompressedImage` | 처리된 카메라 이미지 |
+| `/depth_01_image_01`, `/depth_01_image_02` | `sensor_msgs/CompressedImage` | 처리된 깊이 이미지 |
+| `/lidar_01_image_01`, `/lidar_01_image_02` | `sensor_msgs/CompressedImage` | 라이다 시각화 이미지 |
+| `/depth_world_pointcloud` | `sensor_msgs/PointCloud2` | 월드 좌표계 포인트클라우드 |
+| `/depth_camera_pointcloud` | `sensor_msgs/PointCloud2` | 카메라 좌표계 포인트클라우드 |
+
+### 🔄 TF 프레임
+
+- `base_link` → `camera_01_tf`: 카메라 포즈
+- `base_link` → `depth_01_tf`: 깊이 센서 포즈
+- `base_link` → `lidar_01_tf`: 전방 라이다 포즈
+- `base_link` → `lidar_02_tf`: 후방 라이다 포즈
+
+### 🌐 Web API 엔드포인트
+
+| 엔드포인트 | 메소드 | 설명 |
+|-----------|--------|------|
+| `/on` | GET | 🟢 ROS 시스템 시작 |
+| `/off` | GET | 🔴 ROS 시스템 종료 |
+| `/store` | POST | 💾 캘리브레이션 데이터 저장 (URDF 생성) |
+| `/send` | GET | 📤 URDF 파일 메인 시스템으로 전송 |
+| `/get-ip` | GET | 🌐 현재 시스템 IP 주소 조회 |
+| `/get-cr-settings` | GET | ⚙️ 현재 센서 설정 조회 |
+| `/cr-settings` | POST | ⚙️ 센서 설정 저장 |
+| `/lidar_1_current` | GET | 📡 LiDAR 1 매칭 실행 |
+| `/lidar_2_current` | GET | 📡 LiDAR 2 매칭 실행 |
+
+---
+
+## ⚙️ 설정 및 파라미터
+
+### 📁 설정 파일 위치
+
+- 📷 `camera_pose_estimator/params/camera_pose_estimator_params.yaml`
+- 🔍 `depth_pose_estimator/params/depth_pose_estimator_params.yaml`
+- 🔍 `depth_pose_estimator/params/double_depth_pose_estimator_params.yaml`
+- 🖥️ `pose_estimation_gui/server/assets/cr-settings.json`
+
+### 🎯 주요 파라미터
+
+**카메라 관련:**
+- `ARUCO_EDGE_SIZE`: ArUco 마커 크기 (mm)
+- `ARUCO_GAP_SIZE`: 마커 간 간격 (mm)
+- `ARUCO_BOARD_X/Y`: 그리드 보드 구성 (개수)
+
+**깊이 센서 관련:**
+- `CHESSBOARD_WIDTH/HEIGHT`: 체스보드 패턴 크기
+- `CHESSBOARD_EDGE_SIZE`: 체스보드 셀 크기 (mm)
+- `FRAMES_PER_SECONDS`: 처리 프레임 레이트
+
+**좌표계 변환:**
+- 시스템은 오른손 법칙을 준수하여 좌표 변환 수행
+- 센서별 오프셋 보정값 적용
+- 쿼터니언 ↔ 오일러 각도 자동 변환
+
+---
+
+## 🔧 잠재적 오류 대응
+
+### 📋 체크리스트 방식 예상 오류 대응 현황
+
+#### 1. 📷 마커/패턴이 검출되지 않는 경우 대응
+
+- ✅ 조명 조건 확인 (적절한 밝기, 그림자 없음)
+- ✅ 마커 크기 및 인쇄 품질 확인 (선명한 경계)
+- ✅ 카메라 초점 및 해상도 설정
+- ✅ 마커와 카메라 간의 적절한 거리 유지 (0.5m~3m)
+
+#### 2. 🎯 포즈 추정 정확도 저하되는 경우 대응
+
+- ✅ 카메라 캘리브레이션 재수행 (`camera_calibration` 패키지)
+- ✅ 참조 패턴과 현재 관측 간의 대응점 확인
+- ✅ 센서 노이즈 필터링 파라미터 조정
+- ✅ 환경 변화 (조명, 온도, 진동) 고려
+
+#### 3. 🔄 TF 변환 오류가 있는 경우 대응
+
+- ✅ 프레임 ID 일치 여부 확인 (`rosrun tf view_frames`)
+- ✅ 시간 동기화 문제 점검 (`rosrun tf tf_monitor`)
+- ✅ TF tree 구조 검증 (`rosrun rqt_tf_tree rqt_tf_tree`)
+
+#### 4. 🖥️ GUI 연결 문제 상황 대응
+
+- ✅ ROSBridge 서버 상태 확인
+  ```bash
+  roslaunch rosbridge_server rosbridge_websocket.launch port:=9090
+  ```
+- ✅ 네트워크 설정 및 방화벽 확인
+- ✅ 브라우저 개발자 도구에서 WebSocket 연결 상태 확인
+- ✅ 포트 충돌 확인 (`netstat -tulpn | grep 9090`)
+
+#### 5. 📡 LiDAR 매칭 실패
+
+- ✅ 참조 데이터 품질 확인 (`~/.ros/` 폴더의 텍스트 파일)
+- ✅ 환경 변화가 큰 경우 참조 데이터 재수집
+- ✅ ICP 알고리즘 파라미터 조정 (iteration 수, epsilon 값)
+- ✅ 스캔 범위 내 장애물 존재 여부 확인
+
+### 🔍 디버깅 명령어
+
+```bash
+# TF 관련 디버깅
+rosrun tf view_frames && evince frames.pdf
+rostopic echo /tf
+
+# 토픽 상태 확인
+rostopic list | grep -E "(image|scan|tf)"
+rostopic hz /camera/image_raw/compressed
+
+# 노드 상태 확인
+rosnode list
+rosrun rqt_graph rqt_graph
+```
+
+---
+
+## 🧮 알고리즘 상세
+
+### 📷 Camera Pose Estimator
+
+**처리 단계:**
+
+1. **ArUco 마커 검출**: `cv::aruco::detectMarkers()` 함수 사용
+2. **PnP 문제 해결**: `cv::aruco::estimatePoseBoard()`를 통한 6-DOF 포즈 추정
+3. **Rodrigues 변환**: 회전 벡터 → 회전 행렬 변환
+4. **좌표계 보정**: 카메라 좌표계 → 월드 좌표계 변환
+
+**핵심 수식:**
+
+```
+P_world = R * P_camera + T
+```
+
+여기서 `R`: 3x3 회전행렬, `T`: 3x1 변환벡터
+
+### 🔍 Depth Pose Estimator
+
+**처리 단계:**
+
+1. **패턴 검출**: 체스보드 또는 ArUco 패턴 인식
+2. **3D 포인트 추출**: 깊이 정보 + 2D 좌표 → 3D 좌표 변환
+3. **Rigid Transformation**: SVD 기반 최적 변환 행렬 계산
+4. **이상값 필터링**: RANSAC 또는 통계적 방법으로 노이즈 제거
+
+**SVD 기반 변환:**
+
+```
+H = Σ(Pi_camera - mean_camera) * (Pi_world - mean_world)^T
+[U, S, V] = SVD(H)
+R = V * U^T
+T = mean_world - R * mean_camera
+```
+
+### 📡 LiDAR Pose Estimator
+
+**ICP 알고리즘 단계:**
+
+1. **전처리**: 라이다 스캔 데이터 정규화 및 필터링
+2. **히스토그램 매칭**: 각도별 거리 히스토그램 생성 및 비교
+3. **대응점 탐색**: kd-tree를 이용한 최근점 탐색
+4. **반복 최적화**: SVD 기반 변환 행렬 반복 계산
+5. **수렴 판정**: 오차 임계값 또는 최대 반복 수 도달
+
+**수렴 조건:**
+
+```
+|error_k - error_{k-1}| < epsilon  (일반적으로 0.1)
+max_iterations = 100
+```
+
+---
+
+## 🔄 캘리브레이션 워크플로우
+
+```
+🚀 시스템 시작
+    ↓
+📡 센서 데이터 수집
+    ↓
+센서 타입 확인
+    ↓
+┌────────────────────────────────┐
+│  📷 Camera  │  🔍 Depth  │  📡 LiDAR  │
+│      ↓      │      ↓     │      ↓     │
+│ 🎯 ArUco   │ 📋 체스보드 │ 🖥️ 스캔   │
+│  마커 검출  │  /ArUco 검출│ 데이터 매칭│
+└────────────────────────────────┘
+    ↓
+📊 6-DOF 계산
+    ↓
+🖥️ 실시간 모니터링
+    ↓
+정확도 만족?
+    ↓ Yes          ↓ No
+💾 결과 저장    ⚙️ 파라미터 조정
+    ↓               ↓
+📁 URDF 생성    (반복)
+    ↓
+📤 파일 전송
+    ↓
+✅ 캘리브레이션 완료
+```
+
+### 단계별 상세 설명
+
+1. **🚀 시스템 초기화**: ROS 노드 시작, GUI 연결 확인
+2. **📡 데이터 수집**: 각 센서로부터 실시간 데이터 스트리밍
+3. **🎯 패턴 인식**: 센서별 특화된 패턴/마커 검출
+4. **📊 포즈 계산**: 알고리즘별 6-DOF 값 산출
+5. **🖥️ 모니터링**: GUI를 통한 실시간 결과 확인
+6. **⚙️ 최적화**: 필요시 파라미터 조정 및 재수행
+7. **💾 데이터 저장**: 최종 캘리브레이션 결과 저장
+8. **📁 파일 생성**: 로봇 시스템용 URDF 파일 자동 생성
+
+---
+
+## 📚 참고 자료
+
+### 🔬 핵심 알고리즘 논문
+
+- **ArUco**: Garrido-Jurado et al., "Automatic generation and detection of highly reliable fiducial markers under occlusion"
+- **ICP**: Besl & McKay, "A method for registration of 3-D shapes"
+- **Pose Estimation**: Lepetit et al., "EPnP: Efficient Perspective-n-Point Camera Pose Estimation"
+
+### 📖 기술 문서
+
+- [OpenCV ArUco Documentation](https://docs.opencv.org/master/d5/dae/tutorial_aruco_detection.html)
+- [PCL Point Cloud Library](https://pointclouds.org/)
+- [ROS tf2 Tutorials](http://wiki.ros.org/tf2/Tutorials)
+- [Vue.js 3 Official Guide](https://vuejs.org/)
+- [ROS Bridge Suite](http://wiki.ros.org/rosbridge_suite)
+
+### 🖥️ 개발 환경
+
+- **ROS Noetic**: 로봇 운영체제 LTS 버전
+- **OpenCV 4.x**: 컴퓨터 비전 라이브러리
+- **PCL 1.10+**: 포인트 클라우드 처리 라이브러리
+- **Vue.js 3**: 반응형 웹 프레임워크
+- **TypeScript**: 타입 안전 JavaScript
+- **Bootstrap 5**: 반응형 UI 컴포넌트
+
+---
+
+**문서 버전**: 1.0  
+**최종 업데이트**: 2025년  
+**작성자**: Calibration Room Development Team
