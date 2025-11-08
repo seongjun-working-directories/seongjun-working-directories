@@ -279,7 +279,7 @@
 
 **사용 기술**: Spring Boot, MySQL, Redis, Kafka, WebSocket, Docker
 
-**GitHub**: [market-follower](https://github.com/seongjun-working-directories/seongjun-working-directories/blob/main/docs/tax-canvas.md)
+**GitHub**: [market-follower 설명 문서](https://github.com/seongjun-working-directories/seongjun-working-directories/blob/main/docs/tax-canvas.md)
 
 ---
 
